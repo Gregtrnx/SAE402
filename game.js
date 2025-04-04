@@ -56,7 +56,7 @@ class GameObject {
         this.x = x;
         this.y = y;
         this.type = type;
-        this.radius = 30; // Taille augmentée
+        this.radius = 50; // Taille augmentée
         
         // Ajustement des vitesses initiales
         this.speedY = -5; // Vitesse initiale verticale
@@ -64,7 +64,7 @@ class GameObject {
         
         this.gravity = 0.02; // Gravité réduite pour une descente plus lente
         this.rotation = Math.random() * Math.PI * 2;
-        this.rotationSpeed = (Math.random() - 0.5) * 0.2;
+        this.rotationSpeed = (Math.random() - 0.5) * 0.1;
         this.color = type === 'bomb' ? 'red' : 
                      type === 'fruit1' ? 'blue' :
                      type === 'fruit2' ? 'yellow' : 'green';
