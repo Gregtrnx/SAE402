@@ -12,7 +12,9 @@ const images = {
     heart: new Image(),
     bonusBackground: new Image(),
     chestImage: new Image(),
-    artworkImage: new Image()
+    artworkImage: new Image(),
+    introBackground: new Image(),
+    characterImage: new Image()
 };
 
 // Chargement des images
@@ -26,6 +28,8 @@ images.heart.src = 'images/coeur.png';
 images.bonusBackground.src = 'images/grenier.png';
 images.chestImage.src = 'images/coffre.png';
 images.artworkImage.src = 'images/peinture.png';
+images.introBackground.src = 'images/fondMusee.png';
+images.characterImage.src = 'images/perso.png';
 
 // Variables pour les boutons et UI
 const buttonSize = 40;
@@ -39,20 +43,33 @@ const helpButtonPos = { x: 0, y: buttonPadding * 2 + buttonSize };
 let imagesLoaded = 0;
 const totalImages = Object.keys(images).length;
 
-// Vérifier que toutes les images sont chargées
+// Vérifier que TOUTES les images sont chargées avant de démarrer
 Object.values(images).forEach(img => {
     img.onload = () => {
         imagesLoaded++;
-        if (imagesLoaded === totalImages) {
-            if (images.background.complete && images.fruit1.complete && images.bomb.complete && images.heart.complete && images.rotateGif.complete) {
-                 startGame();
-            } else {
-                console.error("Certaines images essentielles n'ont pas pu être chargées.");
-            }
+        // Vérifier si TOUTES les images (y compris intro) sont chargées
+        if (imagesLoaded === totalImages && Object.values(images).every(i => i.complete && i.naturalHeight !== 0)) {
+             startGame(); // Démarrer seulement quand TOUT est prêt
+        } else if (imagesLoaded === totalImages) {
+            console.error("Certaines images n'ont pas pu être chargées correctement.");
+            // Afficher un message d'erreur à l'utilisateur sur le canvas ?
+            ctx.fillStyle = 'red';
+            ctx.font = '20px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText("Erreur de chargement des images. Vérifiez la console.", canvas.width / 2, canvas.height / 2);
         }
     };
     img.onerror = (e) => {
         console.error(`Erreur de chargement de l'image: ${img.src}`, e);
+        // Marquer comme "chargé" pour ne pas bloquer indéfiniment, mais le contrôle .complete échouera
+        imagesLoaded++;
+        if (imagesLoaded === totalImages) {
+             console.error("Démarrage annulé à cause d'erreurs de chargement.");
+             ctx.fillStyle = 'red';
+             ctx.font = '20px Arial';
+             ctx.textAlign = 'center';
+             ctx.fillText("Erreur critique de chargement. Impossible de démarrer.", canvas.width / 2, canvas.height / 2);
+        }
     };
 });
 
@@ -185,7 +202,7 @@ class FlameParticle {
 }
 
 // Variables du jeu
-let gameMode = 'playing';
+let gameMode = 'intro';
 let objects = [];
 let score = 0;
 let lives = 3;
@@ -203,6 +220,15 @@ let cutLine = [];
 
 // Variables pour les particules de flamme
 let flameParticles = [];
+
+// Variables spécifiques à l'intro
+let introTextState = 0;
+const introTexts = [
+    "Vous pénétrez dans un lieu hors du temps, où chaque œuvre raconte une histoire... mais toutes ne sont pas destinées à survivre. Ce soir, une toile unique — oubliée, interdite, condamnée — doit être détruite à minuit. Mais vous, vous êtes là pour la sauver.", // Texte 0
+    "Votre mission : infiltrer le musée, déjouer les systèmes de sécurité, et retrouver La Peinture Perdue avant qu'il ne soit trop tard. Le compte à rebours a déjà commencé... Bonne chance, et souvenez-vous : ici, l'art vous observe. ",         // Texte 1
+    // Ajoutez d'autres textes si nécessaire
+];
+let bubbleRect = { x: 0, y: 0, width: 0, height: 0 }; // Zone cliquable de la bulle
 
 // Gestionnaire d'événements pour le clic/toucher
 canvas.addEventListener('click', handleCanvasClick);
@@ -235,55 +261,120 @@ function hideTutorialPopup() {
     }
 }
 
-function handleCanvasClick(e) {
-    if (gameOver) return;
+// --- Nouvelle fonction pour réinitialiser le jeu à l'état d'intro ---
+function resetToIntro() {
+    console.log("Réinitialisation vers l'intro...");
+    gameMode = 'intro';
+    score = 0;
+    lives = 3; // Remettre les vies par défaut
+    gameOver = false;
+    objects = [];
+    flameParticles = [];
+    cutLine = [];
+    introTextState = 0; // Revenir au premier texte de l'intro
+    isDrawing = false; // Assurer que le dessin est stoppé
 
+    // Si le canvas hors-écran existe (pour le mode bonus), on pourrait le nettoyer
+    // Bien que non strictement nécessaire car il sera recréé si on re-atteint le bonus
+    // if (offscreenCtx) {
+    //     offscreenCtx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+    // }
+
+    // Pas besoin de redémarrer la gameLoop, elle continue de tourner en arrière plan
+    // On peut forcer un dessin immédiat si on veut voir l'intro tout de suite
+    drawGame();
+}
+// --- Fin fonction de réinitialisation ---
+
+// --- Modifier les gestionnaires de clics/touchers ---
+function handleCanvasClick(e) {
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    // Bouton Croix (Actif sauf pendant Game Over peut-être?)
+    // Si on veut qu'il soit actif même en game over, retirer la condition !gameOver
     if (x >= crossButtonPos.x && x <= crossButtonPos.x + buttonSize &&
         y >= crossButtonPos.y && y <= crossButtonPos.y + buttonSize) {
-        console.log("Clic sur bouton Croix");
-        return;
+        resetToIntro(); // Appeler la fonction de réinitialisation
+        return;         // Important d'arrêter le traitement ici
     }
 
-    if (x >= helpButtonPos.x && x <= helpButtonPos.x + buttonSize &&
-        y >= helpButtonPos.y && y <= helpButtonPos.y + buttonSize) {
-        showTutorialPopup();
-        return;
+    // Bouton Aide (Actif sauf pendant Game Over?)
+    if (!gameOver) { // Si on ne veut pas qu'il soit actif en Game Over
+        if (x >= helpButtonPos.x && x <= helpButtonPos.x + buttonSize &&
+            y >= helpButtonPos.y && y <= helpButtonPos.y + buttonSize) {
+            showTutorialPopup();
+            return;
+        }
     }
 
-    if (gameMode === 'playing') {
+    // Logique spécifique aux modes (si pas géré par les boutons ci-dessus)
+    if (gameMode === 'intro') {
+        if (x >= bubbleRect.x && x <= bubbleRect.x + bubbleRect.width &&
+            y >= bubbleRect.y && y <= bubbleRect.y + bubbleRect.height) {
+            handleIntroClick();
+        }
+    } else if (gameMode === 'playing' && !gameOver) {
         checkCollision(x, y);
     }
 }
 
 function handleCanvasTouch(e) {
     e.preventDefault();
-    if (gameOver) return;
 
     const rect = canvas.getBoundingClientRect();
     const touch = e.touches[0];
     const x = touch.clientX - rect.left;
     const y = touch.clientY - rect.top;
 
+    // Bouton Croix
     if (x >= crossButtonPos.x && x <= crossButtonPos.x + buttonSize &&
         y >= crossButtonPos.y && y <= crossButtonPos.y + buttonSize) {
-        console.log("Toucher sur bouton Croix");
-        return;
+        resetToIntro(); // Appeler la fonction de réinitialisation
+        return;         // Arrêter ici
     }
 
-    if (x >= helpButtonPos.x && x <= helpButtonPos.x + buttonSize &&
-        y >= helpButtonPos.y && y <= helpButtonPos.y + buttonSize) {
-        showTutorialPopup();
-        return;
+    // Bouton Aide
+    if (!gameOver) { // Si on ne veut pas qu'il soit actif en Game Over
+        if (x >= helpButtonPos.x && x <= helpButtonPos.x + buttonSize &&
+            y >= helpButtonPos.y && y <= helpButtonPos.y + buttonSize) {
+            showTutorialPopup();
+            return;
+        }
     }
 
-    if (gameMode === 'playing') {
+    // Logique spécifique aux modes
+    if (gameMode === 'intro') {
+        if (x >= bubbleRect.x && x <= bubbleRect.x + bubbleRect.width &&
+            y >= bubbleRect.y && y <= bubbleRect.y + bubbleRect.height) {
+            handleIntroClick();
+        }
+    } else if (gameMode === 'playing' && !gameOver) {
         checkCollision(x, y);
     }
 }
+
+// --- Nouvelle fonction pour gérer le clic sur la bulle d'intro ---
+function handleIntroClick() {
+    introTextState++;
+    if (introTextState >= introTexts.length) {
+        // Commencer le jeu
+        gameMode = 'playing';
+        // Réinitialiser les variables de jeu pour une nouvelle partie
+        score = 0;
+        lives = 3;
+        gameOver = false;
+        objects = [];
+        flameParticles = [];
+        cutLine = [];
+        lastSpawnTime = Date.now(); // Important pour le premier spawn
+        introTextState = 0; // Réinitialiser pour la prochaine fois
+        // Pas besoin d'appeler gameLoop ici, elle tourne déjà
+    }
+    // Pas besoin de redessiner ici, drawGame le fera à la prochaine frame
+}
+// --- Fin nouvelle fonction ---
 
 function checkCollision(x, y) {
     if (gameMode !== 'playing') return;
@@ -385,7 +476,64 @@ function drawGame() {
 
     ctx.save();
 
-    if (gameMode === 'playing') {
+    if (gameMode === 'intro') {
+        // --- Mode Intro ---
+        ctx.drawImage(images.introBackground, 0, 0, canvas.width, canvas.height);
+
+        // Personnage
+        const charScale = 0.9;
+        const charWidth = images.characterImage.width * charScale;
+        const charHeight = images.characterImage.height * charScale;
+        const charX = canvas.width / 2 - charWidth / 1.8;
+        const charY = canvas.height / 2 - charHeight / 2.3; // Remonté
+        ctx.drawImage(images.characterImage, charX, charY, charWidth, charHeight);
+
+        // --- Dessin de la bulle et du texte (Nouvelle Logique) ---
+        const textMaxWidth = canvas.width * 0.75;
+        const textPadding = 20;
+        const lineHeight = 24;
+        const bubbleBottomMargin = 30;
+        const bubbleBgColor = 'white';
+        const bubbleBorderRadius = 10;
+
+        // 1. Préparer le contexte pour la mesure du texte
+        ctx.font = '16px Arial'; // Définir la police AVANT mesure
+        ctx.textAlign = 'left'; // Alignement pour le dessin ligne par ligne
+        ctx.textBaseline = 'top'; // Aligner en haut pour dessiner les lignes
+
+        // 2. Calculer la disposition du texte et sa hauteur SANS dessiner
+        const currentText = introTexts[introTextState];
+        const layout = calculateTextLayout(ctx, currentText, textMaxWidth, lineHeight);
+        const actualTextHeight = layout.height;
+
+        // 3. Calculer les dimensions et la position de la bulle
+        const bubbleWidth = textMaxWidth + 2 * textPadding;
+        // Ajuster légèrement la hauteur de la bulle si plusieurs lignes
+        const bubbleHeight = actualTextHeight + (layout.linesArray.length > 1 ? textPadding * 1.5 : textPadding * 2) ;
+        const bubbleX = (canvas.width - bubbleWidth) / 2; // Centrer la bulle horizontalement
+        const bubbleY = canvas.height - bubbleHeight - bubbleBottomMargin;
+
+        // 4. Dessiner la bulle (rectangle arrondi blanc)
+        ctx.fillStyle = bubbleBgColor;
+        drawRoundedRect(bubbleX, bubbleY, bubbleWidth, bubbleHeight, bubbleBorderRadius);
+
+        // 5. Dessiner le texte ligne par ligne DANS la bulle
+        ctx.fillStyle = 'black'; // Couleur du texte
+        const textStartX = bubbleX + textPadding; // X de départ du texte dans la bulle
+        let currentY = bubbleY + textPadding;     // Y de départ de la première ligne
+        for (const line of layout.linesArray) {
+            ctx.fillText(line, textStartX, currentY);
+            currentY += lineHeight; // Passer à la ligne suivante
+        }
+
+        // 6. Mettre à jour la zone cliquable avec les dimensions finales de la bulle
+        bubbleRect = { x: bubbleX, y: bubbleY, width: bubbleWidth, height: bubbleHeight };
+
+        // Dessiner les boutons
+        drawButtons();
+        ctx.textBaseline = 'alphabetic'; // Remettre la baseline par défaut
+
+    } else if (gameMode === 'playing') {
         ctx.drawImage(images.background, 0, 0, canvas.width, canvas.height);
         objects.forEach(obj => obj.draw());
 
@@ -614,8 +762,14 @@ function lineCircleCollision(x1, y1, x2, y2, cx, cy, r) {
 }
 
 function gameLoop() {
-    update();
+    // Mettre à jour seulement si on joue ou en bonus
+    if (gameMode === 'playing' || gameMode === 'bonus') {
+      update();
+    }
+    // Toujours dessiner l'état actuel
     drawGame();
+
+    // Continuer la boucle tant que ce n'est pas game over
     if (!gameOver) {
       requestAnimationFrame(gameLoop);
     }
@@ -623,8 +777,8 @@ function gameLoop() {
 
 function startGame() {
     resizeCanvas();
-    lastSpawnTime = Date.now();
-    gameLoop();
+    drawGame();
+    requestAnimationFrame(gameLoop);
 }
 
 function addFlameParticles(x, y) {
@@ -634,4 +788,29 @@ function addFlameParticles(x, y) {
     }
 }
 
-gameLoop(); 
+function calculateTextLayout(context, text, maxWidth, lineHeight) {
+    const words = text.split(' ');
+    let line = '';
+    let lines = [];
+    let testLine;
+    let metrics;
+    let testWidth;
+
+    for (let n = 0; n < words.length; n++) {
+        testLine = line + words[n] + ' ';
+        metrics = context.measureText(testLine);
+        testWidth = metrics.width;
+        if (testWidth > maxWidth && line.length > 0) {
+            lines.push(line.trim());
+            line = words[n] + ' ';
+        } else {
+            line = testLine;
+        }
+    }
+    lines.push(line.trim());
+
+    const totalHeight = lines.length * lineHeight;
+    return { linesArray: lines, height: totalHeight };
+}
+
+startGame(); 
