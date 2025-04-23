@@ -210,7 +210,7 @@ let gameOver = false;
 let lastSpawnTime = 0;
 const spawnInterval = 1000;
 const scoreToWin = 200;
-const scratchRadius = 50;
+const scratchRadius = 30;
 
 // Variables pour le suivi du mouvement
 let isDrawing = false;
@@ -565,7 +565,7 @@ function drawGame() {
         const artworkY = canvas.height / 2 - artworkHeight / 2;
 
         // Augmenter la taille du coffre de 50%
-        const chestScale = 2;
+        const chestScale = 2.5;
         const chestWidth = artworkWidth * chestScale;
         const chestHeight = artworkHeight * chestScale;
         const chestX = canvas.width / 2 - chestWidth / 2;
