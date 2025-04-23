@@ -1,9 +1,13 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ninja Shapes</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap" rel="stylesheet">
     <style>
         body {
             margin: 0;
@@ -12,16 +16,75 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background-color: #f0f0f0;
+            background-color: #333; /* Fond un peu plus sombre */
+            overflow: hidden; /* Empêcher les barres de défilement */
         }
+
         canvas {
-            border: 2px solid #333;
-            background-color: white;
+            /* border: 2px solid #333; */ /* Peut être enlevé si le body a une couleur */
+            background-color: white; /* Le fond du jeu reste blanc ou est géré par l'image */
+            display: block; /* Empêche l'espace sous le canvas */
+        }
+
+        /* Style pour la popup tutoriel */
+        #tutorialPopup {
+            display: none; /* Cachée par défaut */
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            max-width: 500px;
+            background-color: rgba(0, 0, 0, 0.85); /* Fond semi-transparent */
+            color: white;
+            padding: 25px;
+            border-radius: 10px;
+            border: 2px solid #EFB10F;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+            z-index: 100; /* Au-dessus du canvas */
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+
+        #tutorialPopup h2 {
+            color: #EFB10F;
+            margin-top: 0;
+        }
+
+        #tutorialPopup button {
+            background-color: #EFB10F;
+            color: black;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        #tutorialPopup button:hover {
+            background-color: #ffc107;
         }
     </style>
 </head>
+
 <body>
     <canvas id="gameCanvas"></canvas>
+
+    <!-- Popup Tutoriel -->
+    <div id="tutorialPopup">
+        <h2>Tutoriel</h2>
+        <p>
+            <!-- !! Remplacez ce texte par vos instructions !! -->
+            Faites glisser votre doigt ou la souris sur l'écran pour couper les fruits !
+            Évitez de toucher les bombes, sinon vous perdez une vie.
+            Bon jeu !
+        </p>
+        <!-- Ajout de la fonction pour fermer dans onclick -->
+        <button onclick="hideTutorialPopup()">Fermer</button>
+    </div>
+
     <script src="game.js"></script>
 </body>
-</html> 
+
+</html>

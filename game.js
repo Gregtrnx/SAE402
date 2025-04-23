@@ -8,7 +8,11 @@ const images = {
     fruit3: new Image(),
     bomb: new Image(),
     background: new Image(),
-    rotateGif: new Image()
+    rotateGif: new Image(),
+    heart: new Image(),
+    bonusBackground: new Image(),
+    chestImage: new Image(),
+    artworkImage: new Image()
 };
 
 // Chargement des images
@@ -18,6 +22,18 @@ images.fruit3.src = 'images/fruit3.png';
 images.bomb.src = 'images/bomb.png';
 images.background.src = 'images/background.png';
 images.rotateGif.src = 'images/rotate.gif';
+images.heart.src = 'images/coeur.png';
+images.bonusBackground.src = 'images/grenier.png';
+images.chestImage.src = 'images/coffre.png';
+images.artworkImage.src = 'images/peinture.png';
+
+// Variables pour les boutons et UI
+const buttonSize = 40;
+const buttonPadding = 10;
+const heartBgColor = '#EFB10F';
+const cornerRadius = 5;
+const crossButtonPos = { x: 0, y: buttonPadding };
+const helpButtonPos = { x: 0, y: buttonPadding * 2 + buttonSize };
 
 // Variable pour suivre le chargement des images
 let imagesLoaded = 0;
@@ -28,11 +44,15 @@ Object.values(images).forEach(img => {
     img.onload = () => {
         imagesLoaded++;
         if (imagesLoaded === totalImages) {
-            startGame();
+            if (images.background.complete && images.fruit1.complete && images.bomb.complete && images.heart.complete && images.rotateGif.complete) {
+                 startGame();
+            } else {
+                console.error("Certaines images essentielles n'ont pas pu être chargées.");
+            }
         }
     };
-    img.onerror = () => {
-        console.error(`Erreur de chargement de l'image: ${img.src}`);
+    img.onerror = (e) => {
+        console.error(`Erreur de chargement de l'image: ${img.src}`, e);
     };
 });
 
@@ -40,6 +60,16 @@ Object.values(images).forEach(img => {
 function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    // Mettre à jour la position des boutons lors du redimensionnement
+    crossButtonPos.x = canvas.width - buttonSize - buttonPadding;
+    crossButtonPos.y = buttonPadding;
+    helpButtonPos.x = canvas.width - buttonSize - buttonPadding;
+    helpButtonPos.y = buttonPadding * 2 + buttonSize;
+
+    // Redessiner immédiatement
+    if (imagesLoaded === totalImages) {
+       drawGame();
+    }
 }
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
@@ -47,8 +77,29 @@ window.addEventListener('resize', resizeCanvas);
 // Détection de l'orientation
 let isLandscape = window.innerWidth > window.innerHeight;
 window.addEventListener('resize', () => {
+    const ছিলLandscape = isLandscape;
     isLandscape = window.innerWidth > window.innerHeight;
+    if (isLandscape !== ছিলLandscape && imagesLoaded === totalImages) {
+        drawGame();
+    }
 });
+
+// --- Fonction Utiliaire: Dessiner un rectangle arrondi ---
+function drawRoundedRect(x, y, width, height, radius) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.arcTo(x + width, y, x + width, y + radius, radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+    ctx.lineTo(x + radius, y + height);
+    ctx.arcTo(x, y + height, x, y + height - radius, radius);
+    ctx.lineTo(x, y + radius);
+    ctx.arcTo(x, y, x + radius, y, radius);
+    ctx.closePath();
+    ctx.fill();
+}
+// --- Fin Fonction Utiliaire ---
 
 // Classe pour les objets du jeu
 class GameObject {
@@ -56,13 +107,12 @@ class GameObject {
         this.x = x;
         this.y = y;
         this.type = type;
-        this.radius = 50; // Taille augmentée
+        this.radius = 50;
         
-        // Ajustement des vitesses initiales
-        this.speedY = -5; // Vitesse initiale verticale
-        this.speedX = (Math.random() - 0.5) * 2; // Variation horizontale réduite
+        this.speedY = -5;
+        this.speedX = (Math.random() - 0.5) * 2;
         
-        this.gravity = 0.02; // Gravité réduite pour une descente plus lente
+        this.gravity = 0.02;
         this.rotation = Math.random() * Math.PI * 2;
         this.rotationSpeed = (Math.random() - 0.5) * 0.1;
         this.color = type === 'bomb' ? 'red' : 
@@ -71,7 +121,6 @@ class GameObject {
     }
 
     update() {
-        // Physique simplifiée
         this.speedY += this.gravity;
         this.y += this.speedY;
         this.x += this.speedX;
@@ -83,12 +132,10 @@ class GameObject {
         ctx.translate(this.x, this.y);
         ctx.rotate(this.rotation);
         
-        // Dessiner l'image correspondante
         const img = this.type === 'bomb' ? images.bomb :
                    this.type === 'fruit1' ? images.fruit1 :
                    this.type === 'fruit2' ? images.fruit2 : images.fruit3;
         
-        // Ajuster la taille de l'image
         const size = this.radius * 2;
         ctx.drawImage(img, -size/2, -size/2, size, size);
         
@@ -138,12 +185,15 @@ class FlameParticle {
 }
 
 // Variables du jeu
+let gameMode = 'playing';
 let objects = [];
 let score = 0;
-let lives = 3; // Ajout des vies
+let lives = 3;
 let gameOver = false;
 let lastSpawnTime = 0;
-const spawnInterval = 1000; // Intervalle de spawn en millisecondes
+const spawnInterval = 1000;
+const scoreToWin = 200;
+const scratchRadius = 25;
 
 // Variables pour le suivi du mouvement
 let isDrawing = false;
@@ -155,8 +205,8 @@ let cutLine = [];
 let flameParticles = [];
 
 // Gestionnaire d'événements pour le clic/toucher
-canvas.addEventListener('click', handleClick);
-canvas.addEventListener('touchstart', handleTouch);
+canvas.addEventListener('click', handleCanvasClick);
+canvas.addEventListener('touchstart', handleCanvasTouch);
 
 // Gestionnaire d'événements pour le mouvement continu
 canvas.addEventListener('mousedown', startDrawing);
@@ -168,26 +218,76 @@ canvas.addEventListener('touchstart', handleTouchStart);
 canvas.addEventListener('touchmove', handleTouchMove);
 canvas.addEventListener('touchend', stopDrawing);
 
-function handleClick(e) {
+// Fonction pour afficher la popup
+function showTutorialPopup() {
+    console.log("Afficher la popup tutoriel");
+    const popup = document.getElementById('tutorialPopup');
+    if (popup) {
+        popup.style.display = 'block';
+    }
+}
+
+// Fonction pour masquer la popup
+function hideTutorialPopup() {
+    const popup = document.getElementById('tutorialPopup');
+    if (popup) {
+        popup.style.display = 'none';
+    }
+}
+
+function handleCanvasClick(e) {
     if (gameOver) return;
-    
+
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    checkCollision(x, y);
+
+    if (x >= crossButtonPos.x && x <= crossButtonPos.x + buttonSize &&
+        y >= crossButtonPos.y && y <= crossButtonPos.y + buttonSize) {
+        console.log("Clic sur bouton Croix");
+        return;
+    }
+
+    if (x >= helpButtonPos.x && x <= helpButtonPos.x + buttonSize &&
+        y >= helpButtonPos.y && y <= helpButtonPos.y + buttonSize) {
+        showTutorialPopup();
+        return;
+    }
+
+    if (gameMode === 'playing') {
+        checkCollision(x, y);
+    }
 }
 
-function handleTouch(e) {
+function handleCanvasTouch(e) {
     e.preventDefault();
     if (gameOver) return;
-    
+
     const rect = canvas.getBoundingClientRect();
-    const x = e.touches[0].clientX - rect.left;
-    const y = e.touches[0].clientY - rect.top;
-    checkCollision(x, y);
+    const touch = e.touches[0];
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    if (x >= crossButtonPos.x && x <= crossButtonPos.x + buttonSize &&
+        y >= crossButtonPos.y && y <= crossButtonPos.y + buttonSize) {
+        console.log("Toucher sur bouton Croix");
+        return;
+    }
+
+    if (x >= helpButtonPos.x && x <= helpButtonPos.x + buttonSize &&
+        y >= helpButtonPos.y && y <= helpButtonPos.y + buttonSize) {
+        showTutorialPopup();
+        return;
+    }
+
+    if (gameMode === 'playing') {
+        checkCollision(x, y);
+    }
 }
 
 function checkCollision(x, y) {
+    if (gameMode !== 'playing') return;
+
     for (let i = objects.length - 1; i >= 0; i--) {
         const obj = objects[i];
         const distance = Math.sqrt(
@@ -196,20 +296,31 @@ function checkCollision(x, y) {
         
         if (distance < obj.radius) {
             if (obj.type === 'bomb') {
-                lives--; // Perdre une vie quand on coupe une bombe
+                lives--;
                 if (lives <= 0) {
                     gameOver = true;
                 }
             } else {
                 score += 10;
+                if (score >= scoreToWin && gameMode === 'playing') {
+                    gameMode = 'bonus';
+                    objects = [];
+                    flameParticles = [];
+                    cutLine = [];
+                }
             }
-            objects.splice(i, 1);
+            if (!gameOver) {
+               objects.splice(i, 1);
+            } else {
+                break;
+            }
         }
     }
 }
 
 function spawnObject() {
-    // Spawn uniquement depuis le bas
+    if (gameMode !== 'playing' || gameOver) return;
+
     const x = Math.random() * (canvas.width - 40) + 20;
     const y = canvas.height + 20;
     
@@ -224,91 +335,181 @@ function spawnObject() {
 function update() {
     if (gameOver) return;
 
-    const currentTime = Date.now();
-    if (currentTime - lastSpawnTime > spawnInterval) {
-        spawnObject();
-        lastSpawnTime = currentTime;
-    }
+    if (gameMode === 'playing') {
+        const currentTime = Date.now();
+        if (currentTime - lastSpawnTime > spawnInterval) {
+            spawnObject();
+            lastSpawnTime = currentTime;
+        }
 
-    objects = objects.filter(obj => !obj.isOffScreen());
-    objects.forEach(obj => obj.update());
+        objects = objects.filter(obj => !obj.isOffScreen());
+        objects.forEach(obj => obj.update());
+
+        flameParticles = flameParticles.filter(particle => {
+            particle.update();
+            return particle.life > 0;
+        });
+    }
 }
 
 function draw(e) {
-    if (!isDrawing) return;
-    
+    if (!isDrawing || gameOver) return;
+
     const pos = getMousePos(e);
-    cutLine.push({x: pos.x, y: pos.y});
-    
-    // Ajouter des particules de flamme
-    addFlameParticles(pos.x, pos.y);
-    
-    // Vérifier les collisions avec la ligne de coupe
-    checkLineCollision(lastX, lastY, pos.x, pos.y);
-    
+
+    if (gameMode === 'playing') {
+        cutLine.push({ x: pos.x, y: pos.y });
+        addFlameParticles(pos.x, pos.y);
+        checkLineCollision(lastX, lastY, pos.x, pos.y);
+    } else if (gameMode === 'bonus') {
+    }
+
     lastX = pos.x;
     lastY = pos.y;
 }
 
 function drawGame() {
-    // Vérifier l'orientation
     if (isLandscape) {
-        // Afficher le message de rotation
         ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Dessiner le gif de rotation
         const gifSize = Math.min(canvas.width, canvas.height) * 0.3;
-        ctx.drawImage(images.rotateGif, 
-            canvas.width/2 - gifSize/2, 
-            canvas.height/2 - gifSize/2, 
-            gifSize, gifSize);
-        
-        // Afficher le message
+        if (images.rotateGif.complete && images.rotateGif.naturalHeight !== 0) {
+           ctx.drawImage(images.rotateGif, canvas.width / 2 - gifSize / 2, canvas.height / 2 - gifSize / 2, gifSize, gifSize);
+        }
         ctx.fillStyle = 'white';
         ctx.font = '24px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText('Veuillez tourner votre téléphone', canvas.width/2, canvas.height/2 + gifSize/2 + 30);
+        ctx.fillText('Veuillez tourner votre téléphone', canvas.width / 2, canvas.height / 2 + gifSize / 2 + 30);
         return;
     }
-    
-    // Dessiner le background
-    ctx.drawImage(images.background, 0, 0, canvas.width, canvas.height);
-    
-    objects.forEach(obj => obj.draw());
-    
-    // Mettre à jour et dessiner les particules de flamme
-    flameParticles = flameParticles.filter(particle => {
-        particle.update();
-        particle.draw();
-        return particle.life > 0;
-    });
-    
-    // Dessiner la ligne de coupe si on est en train de dessiner
-    if (isDrawing && cutLine.length > 1) {
-        ctx.beginPath();
-        ctx.moveTo(cutLine[0].x, cutLine[0].y);
-        for (let i = 1; i < cutLine.length; i++) {
-            ctx.lineTo(cutLine[i].x, cutLine[i].y);
+
+    ctx.save();
+
+    if (gameMode === 'playing') {
+        ctx.drawImage(images.background, 0, 0, canvas.width, canvas.height);
+        objects.forEach(obj => obj.draw());
+
+        flameParticles.forEach(particle => particle.draw());
+
+        if (isDrawing && cutLine.length > 1) {
+            ctx.beginPath();
+            ctx.moveTo(cutLine[0].x, cutLine[0].y);
+            for (let i = 1; i < cutLine.length; i++) {
+                ctx.lineTo(cutLine[i].x, cutLine[i].y);
+            }
+            ctx.strokeStyle = 'rgba(255, 200, 0, 0.5)';
+            ctx.lineWidth = 3;
+            ctx.stroke();
         }
-        ctx.strokeStyle = 'rgba(255, 200, 0, 0.5)';
-        ctx.lineWidth = 3;
-        ctx.stroke();
+
+        drawUI();
+
+    } else if (gameMode === 'bonus') {
+        ctx.drawImage(images.bonusBackground, 0, 0, canvas.width, canvas.height);
+
+        const artworkWidth = Math.min(canvas.width * 0.6, images.artworkImage.width);
+        const artworkHeight = (artworkWidth / images.artworkImage.width) * images.artworkImage.height;
+        const artworkX = canvas.width / 2 - artworkWidth / 2;
+        const artworkY = canvas.height / 2 - artworkHeight / 2;
+
+        ctx.drawImage(images.artworkImage, artworkX, artworkY, artworkWidth, artworkHeight);
+
+        ctx.drawImage(images.chestImage, artworkX, artworkY, artworkWidth, artworkHeight);
+
+        if (isDrawing) {
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fillStyle = 'rgba(0,0,0,1)';
+            ctx.beginPath();
+            ctx.arc(lastX, lastY, scratchRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        drawButtons();
+
     }
-    
-    // Afficher le score et les vies
-    ctx.fillStyle = 'white';
-    ctx.font = '24px Arial';
-    ctx.textAlign = 'left';
-    ctx.fillText(`Score: ${score}`, 10, 30);
-    ctx.fillText(`Vies: ${lives}`, 10, 60);
-    
+
     if (gameOver) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = 'red';
-        ctx.font = '48px Arial';
+        ctx.font = 'bold 48px "Luckiest Guy"';
         ctx.textAlign = 'center';
+        ctx.shadowColor = 'black';
+        ctx.shadowBlur = 5;
         ctx.fillText('Game Over!', canvas.width/2, canvas.height/2);
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
     }
+
+    ctx.restore();
+}
+
+function drawUI() {
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+    ctx.shadowBlur = 3;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+
+    const scoreX = 15;
+    const scoreY = 40;
+    ctx.font = 'bold 30px "Luckiest Guy"';
+    ctx.fillStyle = '#EFB10F';
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 0.2;
+    ctx.textAlign = 'left';
+    ctx.fillText(`Score : ${score}`, scoreX, scoreY);
+    ctx.strokeText(`Score : ${score}`, scoreX, scoreY);
+
+    const heartSize = 30;
+    const heartPadding = 5;
+    const heartsY = 65;
+    const heartsTotalWidth = lives * heartSize + Math.max(0, lives - 1) * heartPadding;
+    const heartsBgX = scoreX - 5;
+    const heartsBgY = heartsY - 5;
+    const heartsBgWidth = heartsTotalWidth + 10;
+    const heartsBgHeight = heartSize + 10;
+    const heartsStartX = heartsBgX + 5;
+
+    ctx.fillStyle = heartBgColor;
+    drawRoundedRect(heartsBgX, heartsBgY, heartsBgWidth, heartsBgHeight, cornerRadius);
+
+    for (let i = 0; i < lives; i++) {
+        if (images.heart.complete && images.heart.naturalHeight !== 0) {
+             ctx.drawImage(images.heart, heartsStartX + i * (heartSize + heartPadding), heartsY, heartSize, heartSize);
+        }
+    }
+
+    drawButtons();
+
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.textBaseline = 'alphabetic';
+    ctx.lineWidth = 1;
+}
+
+function drawButtons() {
+    ctx.fillStyle = heartBgColor;
+    drawRoundedRect(crossButtonPos.x, crossButtonPos.y, buttonSize, buttonSize, cornerRadius);
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(crossButtonPos.x + buttonPadding, crossButtonPos.y + buttonPadding);
+    ctx.lineTo(crossButtonPos.x + buttonSize - buttonPadding, crossButtonPos.y + buttonSize - buttonPadding);
+    ctx.moveTo(crossButtonPos.x + buttonSize - buttonPadding, crossButtonPos.y + buttonPadding);
+    ctx.lineTo(crossButtonPos.x + buttonPadding, crossButtonPos.y + buttonSize - buttonPadding);
+    ctx.stroke();
+
+    ctx.fillStyle = heartBgColor;
+    drawRoundedRect(helpButtonPos.x, helpButtonPos.y, buttonSize, buttonSize, cornerRadius);
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 30px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('?', helpButtonPos.x + buttonSize / 2, helpButtonPos.y + buttonSize / 2 + 2);
+    ctx.textBaseline = 'alphabetic';
 }
 
 function startDrawing(e) {
@@ -317,13 +518,16 @@ function startDrawing(e) {
     const pos = getMousePos(e);
     lastX = pos.x;
     lastY = pos.y;
-    cutLine = [{x: lastX, y: lastY}];
+    if (gameMode === 'playing') {
+        cutLine = [{ x: lastX, y: lastY }];
+    }
 }
 
 function stopDrawing() {
     isDrawing = false;
-    cutLine = [];
-    flameParticles = [];
+    if (gameMode === 'playing') {
+        cutLine = [];
+    }
 }
 
 function handleTouchStart(e) {
@@ -345,59 +549,86 @@ function getMousePos(e) {
 }
 
 function checkLineCollision(x1, y1, x2, y2) {
+    if (gameMode !== 'playing') return;
+
     for (let i = objects.length - 1; i >= 0; i--) {
         const obj = objects[i];
+        const lineBounds = {
+            minX: Math.min(x1, x2), maxX: Math.max(x1, x2),
+            minY: Math.min(y1, y2), maxY: Math.max(y1, y2)
+        };
+        if (lineBounds.maxX < obj.x - obj.radius || lineBounds.minX > obj.x + obj.radius ||
+            lineBounds.maxY < obj.y - obj.radius || lineBounds.minY > obj.y + obj.radius) {
+            continue;
+        }
+
         if (lineCircleCollision(x1, y1, x2, y2, obj.x, obj.y, obj.radius)) {
-            if (obj.type === 'bomb') {
-                lives--; // Perdre une vie quand on coupe une bombe
+             if (obj.type === 'bomb') {
+                lives--;
                 if (lives <= 0) {
                     gameOver = true;
                 }
             } else {
                 score += 10;
+                if (score >= scoreToWin && gameMode === 'playing') {
+                    gameMode = 'bonus';
+                    objects = [];
+                    flameParticles = [];
+                    cutLine = [];
+                }
             }
-            objects.splice(i, 1);
+             if (!gameOver) {
+                objects.splice(i, 1);
+             } else {
+                 break;
+             }
         }
     }
 }
 
 function lineCircleCollision(x1, y1, x2, y2, cx, cy, r) {
-    // Vecteur de la ligne
     const dx = x2 - x1;
     const dy = y2 - y1;
-    
-    // Vecteur du point au début de la ligne
-    const fx = x1 - cx;
-    const fy = y1 - cy;
-    
-    // Calcul de la distance minimale
-    const a = dx * dx + dy * dy;
-    const b = 2 * (fx * dx + fy * dy);
-    const c = fx * fx + fy * fy - r * r;
-    
-    const discriminant = b * b - 4 * a * c;
-    
-    if (discriminant < 0) return false;
-    
-    const t1 = (-b - Math.sqrt(discriminant)) / (2 * a);
-    const t2 = (-b + Math.sqrt(discriminant)) / (2 * a);
-    
-    return (t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1);
+    const lenSq = dx * dx + dy * dy;
+
+    const t = ((cx - x1) * dx + (cy - y1) * dy) / lenSq;
+
+    let closestX, closestY;
+
+    if (t < 0) {
+        closestX = x1;
+        closestY = y1;
+    } else if (t > 1) {
+        closestX = x2;
+        closestY = y2;
+    } else {
+        closestX = x1 + t * dx;
+        closestY = y1 + t * dy;
+    }
+
+    const distX = cx - closestX;
+    const distY = cy - closestY;
+    const distanceSq = distX * distX + distY * distY;
+
+    return distanceSq <= r * r;
 }
 
 function gameLoop() {
     update();
     drawGame();
-    requestAnimationFrame(gameLoop);
+    if (!gameOver) {
+      requestAnimationFrame(gameLoop);
+    }
 }
 
-// Fonction pour démarrer le jeu une fois les images chargées
 function startGame() {
+    resizeCanvas();
+    lastSpawnTime = Date.now();
     gameLoop();
 }
 
-// Fonction pour ajouter des particules de flamme
 function addFlameParticles(x, y) {
+     if (gameMode !== 'playing') return;
     for (let i = 0; i < 5; i++) {
         flameParticles.push(new FlameParticle(x, y));
     }
