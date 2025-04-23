@@ -14,7 +14,8 @@ const images = {
     chestImage: new Image(),
     artworkImage: new Image(),
     introBackground: new Image(),
-    characterImage: new Image()
+    characterImage: new Image(),
+    handImage: new Image() // Ajouter l'image de la main
 };
 
 // Chargement des images
@@ -30,6 +31,7 @@ images.chestImage.src = 'images/coffre.png';
 images.artworkImage.src = 'images/peinture.png';
 images.introBackground.src = 'images/fondMusee.png';
 images.characterImage.src = 'images/perso.png';
+images.handImage.src = 'images/main.png';
 
 // Variables pour les boutons et UI
 const buttonSize = 40;
@@ -224,7 +226,7 @@ let flameParticles = [];
 // Variables spécifiques à l'intro
 let introTextState = 0;
 const introTexts = [
-    "Vous pénétrez dans un lieu hors du temps, où chaque œuvre raconte une histoire... mais toutes ne sont pas destinées à survivre. Ce soir, une toile unique — oubliée, interdite, condamnée — doit être détruite à minuit. Mais vous, vous êtes là pour la sauver.", // Texte 0
+    "Vous pénétrez dans un lieu hors du temps, où chaque œuvre raconte une histoire... mais toutes ne sont pas destinées à survivre. Ce soir, une toile unique, oubliée, interdite, condamnée doit être détruite à minuit. Mais vous, vous êtes là pour la sauver.", // Texte 0
     "Votre mission : infiltrer le musée, déjouer les systèmes de sécurité, et retrouver La Peinture Perdue avant qu'il ne soit trop tard. Le compte à rebours a déjà commencé... Bonne chance, et souvenez-vous : ici, l'art vous observe. ",         // Texte 1
     // Ajoutez d'autres textes si nécessaire
 ];
@@ -403,6 +405,8 @@ function checkCollision(x, y) {
                         window.offscreenCanvas = null;
                         window.offscreenCtx = null;
                     }
+                    // Réinitialiser la main pour le mode bonus
+                    resetHandAnimation();
                 }
             }
             if (!gameOver) {
@@ -445,6 +449,8 @@ function update() {
             particle.update();
             return particle.life > 0;
         });
+    } else if (gameMode === 'bonus') {
+        updateHandAnimation(); // Mettre à jour l'animation de la main
     }
 }
 
@@ -601,6 +607,18 @@ function drawGame() {
         // Dessiner le canvas hors-écran (avec le coffre et les zones grattées) sur le canvas principal
         ctx.drawImage(window.offscreenCanvas, 0, 0);
 
+        // --- Dessiner la main si visible ---
+        if (handVisible && images.handImage.complete && images.handImage.naturalHeight !== 0) {
+            const handScale = 0.5; // Ajuster si nécessaire
+            const handWidth = images.handImage.width * handScale;
+            const handHeight = images.handImage.height * handScale;
+            // Centrer la main horizontalement par rapport au canvas (ou au coffre si préféré)
+            const handX = canvas.width / 2 - handWidth / 2;
+            // Utiliser la position Y animée
+            ctx.drawImage(images.handImage, handX, handY, handWidth, handHeight);
+        }
+        // --- Fin dessin de la main ---
+
         drawButtons();
 
     }
@@ -696,6 +714,8 @@ function startDrawing(e) {
     lastY = pos.y;
     if (gameMode === 'playing') {
         cutLine = [{ x: lastX, y: lastY }];
+    } else if (gameMode === 'bonus') {
+        handVisible = false; // Cacher la main dès qu'on commence à gratter
     }
 }
 
@@ -709,6 +729,7 @@ function stopDrawing() {
 function handleTouchStart(e) {
     e.preventDefault();
     startDrawing(e.touches[0]);
+    // Pas besoin de remettre handVisible = false ici, startDrawing le fait déjà
 }
 
 function handleTouchMove(e) {
@@ -762,6 +783,8 @@ function checkLineCollision(x1, y1, x2, y2) {
                         window.offscreenCanvas = null;
                         window.offscreenCtx = null;
                     }
+                    // Réinitialiser la main pour le mode bonus
+                    resetHandAnimation();
                 }
             }
              if (!gameOver) {
@@ -854,5 +877,32 @@ function calculateTextLayout(context, text, maxWidth, lineHeight) {
     const totalHeight = lines.length * lineHeight;
     return { linesArray: lines, height: totalHeight };
 }
+
+let handVisible = false;
+let handY = 0;
+let handStartY = 0;
+let handAmplitude = 10;
+let handSpeed = 0.05;
+let handAngle = 0;
+
+// --- Fonction pour réinitialiser l'animation de la main ---
+function resetHandAnimation() {
+    handVisible = true; // Rendre la main visible
+    // Calculer la position Y de départ au-dessus du centre approximatif du coffre
+    // (On suppose que le coffre est plus ou moins centré verticalement)
+    const chestCenterY = canvas.height / 2;
+    const handHeight = images.handImage.height * 0.5; // Hauteur approximative de la main dessinée
+    handStartY = chestCenterY - handHeight / 2 - handAmplitude; // Positionner au-dessus avec de la marge pour l'amplitude
+    handY = handStartY;
+    handAngle = 0; // Réinitialiser l'angle pour l'oscillation
+}
+
+// --- Fonction pour mettre à jour l'animation de la main ---
+function updateHandAnimation() {
+    if (!handVisible) return;
+    handAngle += handSpeed;
+    handY = handStartY + Math.sin(handAngle) * handAmplitude;
+}
+// --- Fin fonctions pour la main ---
 
 startGame(); 
