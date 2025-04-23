@@ -210,7 +210,7 @@ let gameOver = false;
 let lastSpawnTime = 0;
 const spawnInterval = 1000;
 const scoreToWin = 200;
-const scratchRadius = 25;
+const scratchRadius = 50;
 
 // Variables pour le suivi du mouvement
 let isDrawing = false;
@@ -274,11 +274,11 @@ function resetToIntro() {
     introTextState = 0; // Revenir au premier texte de l'intro
     isDrawing = false; // Assurer que le dessin est stoppé
 
-    // Si le canvas hors-écran existe (pour le mode bonus), on pourrait le nettoyer
-    // Bien que non strictement nécessaire car il sera recréé si on re-atteint le bonus
-    // if (offscreenCtx) {
-    //     offscreenCtx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
-    // }
+    // Si le canvas hors-écran existe (pour le mode bonus), on le nettoie
+    if (window.offscreenCanvas) {
+        window.offscreenCanvas = null;
+        window.offscreenCtx = null;
+    }
 
     // Pas besoin de redémarrer la gameLoop, elle continue de tourner en arrière plan
     // On peut forcer un dessin immédiat si on veut voir l'intro tout de suite
@@ -398,6 +398,11 @@ function checkCollision(x, y) {
                     objects = [];
                     flameParticles = [];
                     cutLine = [];
+                    // Réinitialiser le canvas hors-écran pour s'assurer qu'un nouveau coffre sera créé
+                    if (window.offscreenCanvas) {
+                        window.offscreenCanvas = null;
+                        window.offscreenCtx = null;
+                    }
                 }
             }
             if (!gameOver) {
@@ -452,7 +457,6 @@ function draw(e) {
         cutLine.push({ x: pos.x, y: pos.y });
         addFlameParticles(pos.x, pos.y);
         checkLineCollision(lastX, lastY, pos.x, pos.y);
-    } else if (gameMode === 'bonus') {
     }
 
     lastX = pos.x;
@@ -560,18 +564,42 @@ function drawGame() {
         const artworkX = canvas.width / 2 - artworkWidth / 2;
         const artworkY = canvas.height / 2 - artworkHeight / 2;
 
+        // Augmenter la taille du coffre de 50%
+        const chestScale = 2;
+        const chestWidth = artworkWidth * chestScale;
+        const chestHeight = artworkHeight * chestScale;
+        const chestX = canvas.width / 2 - chestWidth / 2;
+        const chestY = canvas.height / 2 - chestHeight / 2;
+
+        // Dessiner d'abord l'oeuvre d'art (qui sera révélée par le grattage)
         ctx.drawImage(images.artworkImage, artworkX, artworkY, artworkWidth, artworkHeight);
 
-        ctx.drawImage(images.chestImage, artworkX, artworkY, artworkWidth, artworkHeight);
-
-        if (isDrawing) {
-            ctx.globalCompositeOperation = 'destination-out';
-            ctx.fillStyle = 'rgba(0,0,0,1)';
-            ctx.beginPath();
-            ctx.arc(lastX, lastY, scratchRadius, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.globalCompositeOperation = 'source-over';
+        // Initialiser le canvas hors-écran pour le coffre lors du premier passage en mode bonus
+        if (!window.offscreenCanvas) {
+            window.offscreenCanvas = document.createElement('canvas');
+            window.offscreenCanvas.width = canvas.width;
+            window.offscreenCanvas.height = canvas.height;
+            window.offscreenCtx = window.offscreenCanvas.getContext('2d');
+            
+            // Remplir le canvas hors-écran avec une couleur transparente
+            window.offscreenCtx.clearRect(0, 0, window.offscreenCanvas.width, window.offscreenCanvas.height);
+            
+            // Dessiner le coffre sur le canvas hors-écran
+            window.offscreenCtx.drawImage(images.chestImage, chestX, chestY, chestWidth, chestHeight);
         }
+        
+        // Si le joueur est en train de gratter
+        if (isDrawing) {
+            // Effacer une partie du coffre à la position du curseur/doigt
+            window.offscreenCtx.globalCompositeOperation = 'destination-out';
+            window.offscreenCtx.beginPath();
+            window.offscreenCtx.arc(lastX, lastY, scratchRadius, 0, Math.PI * 2);
+            window.offscreenCtx.fill();
+            window.offscreenCtx.globalCompositeOperation = 'source-over';
+        }
+        
+        // Dessiner le canvas hors-écran (avec le coffre et les zones grattées) sur le canvas principal
+        ctx.drawImage(window.offscreenCanvas, 0, 0);
 
         drawButtons();
 
@@ -699,6 +727,12 @@ function getMousePos(e) {
 function checkLineCollision(x1, y1, x2, y2) {
     if (gameMode !== 'playing') return;
 
+    // Vérifier que toutes les coordonnées sont des nombres valides
+    if (x1 === undefined || y1 === undefined || x2 === undefined || y2 === undefined || 
+        isNaN(x1) || isNaN(y1) || isNaN(x2) || isNaN(y2)) {
+        return;
+    }
+
     for (let i = objects.length - 1; i >= 0; i--) {
         const obj = objects[i];
         const lineBounds = {
@@ -723,6 +757,11 @@ function checkLineCollision(x1, y1, x2, y2) {
                     objects = [];
                     flameParticles = [];
                     cutLine = [];
+                    // Réinitialiser le canvas hors-écran pour s'assurer qu'un nouveau coffre sera créé
+                    if (window.offscreenCanvas) {
+                        window.offscreenCanvas = null;
+                        window.offscreenCtx = null;
+                    }
                 }
             }
              if (!gameOver) {
@@ -738,6 +777,9 @@ function lineCircleCollision(x1, y1, x2, y2, cx, cy, r) {
     const dx = x2 - x1;
     const dy = y2 - y1;
     const lenSq = dx * dx + dy * dy;
+
+    // Éviter division par zéro si les points sont confondus
+    if (lenSq === 0) return false;
 
     const t = ((cx - x1) * dx + (cy - y1) * dy) / lenSq;
 
