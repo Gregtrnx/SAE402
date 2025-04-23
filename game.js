@@ -226,8 +226,8 @@ let flameParticles = [];
 // Variables spécifiques à l'intro
 let introTextState = 0;
 const introTexts = [
-    "Vous pénétrez dans un lieu hors du temps, où chaque œuvre raconte une histoire... mais toutes ne sont pas destinées à survivre. Ce soir, une toile unique, oubliée, interdite, condamnée doit être détruite à minuit. Mais vous, vous êtes là pour la sauver.", // Texte 0
-    "Votre mission : infiltrer le musée, déjouer les systèmes de sécurité, et retrouver La Peinture Perdue avant qu'il ne soit trop tard. Le compte à rebours a déjà commencé... Bonne chance, et souvenez-vous : ici, l'art vous observe. ",         // Texte 1
+    "Vous pénétrez dans un lieu hors du temps, où chaque œuvre raconte une histoire... mais toutes ne sont pas destinées à survivre. Ce soir, une toile unique, oubliée, interdite, condamnée doit être détruite à minuit. Mais vous, vous êtes là pour la sauver. ▶", // Texte 0
+    "Votre mission : infiltrer le musée, déjouer les systèmes de sécurité, et retrouver La Peinture Perdue avant qu'il ne soit trop tard. Le compte à rebours a déjà commencé... Bonne chance, et souvenez-vous : ici, l'art vous observe. ▶",         // Texte 1
     // Ajoutez d'autres textes si nécessaire
 ];
 let bubbleRect = { x: 0, y: 0, width: 0, height: 0 }; // Zone cliquable de la bulle
