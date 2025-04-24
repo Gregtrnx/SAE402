@@ -18,6 +18,17 @@ const images = {
     handImage: new Image() // Ajouter l'image de la main
 };
 
+// Sons
+const introMusic = new Audio('sons/intro-song.mp3');
+introMusic.loop = true;
+const gameMusic = new Audio('sons/game-song.mp3');
+gameMusic.loop = true;
+const bonusMusic = new Audio('sons/bonus-song.mp3');
+bonusMusic.loop = true;
+
+// Variable pour savoir si l'utilisateur a interagi (pour l'autoplay)
+let userInteracted = false;
+
 // Chargement des images
 images.fruit1.src = 'images/fruit1.png';
 images.fruit2.src = 'images/fruit2.png';
@@ -119,6 +130,26 @@ function drawRoundedRect(x, y, width, height, radius) {
     ctx.fill();
 }
 // --- Fin Fonction Utiliaire ---
+
+// --- Fonctions de gestion de la musique ---
+function stopAllMusic() {
+    introMusic.pause();
+    introMusic.currentTime = 0; // Rembobiner
+    gameMusic.pause();
+    gameMusic.currentTime = 0;
+    bonusMusic.pause();
+    bonusMusic.currentTime = 0;
+}
+
+function playMusic(musicElement) {
+    if (!userInteracted) return; // Ne pas jouer avant interaction
+    stopAllMusic();
+    musicElement.play().catch(error => {
+        console.error("Erreur lors de la lecture de la musique : ", error);
+        // Gérer l'erreur, peut-être afficher un message ou désactiver la musique
+    });
+}
+// --- Fin Fonctions Musique ---
 
 // Classe pour les objets du jeu
 class GameObject {
@@ -276,6 +307,13 @@ function resetToIntro() {
     introTextState = 0; // Revenir au premier texte de l'intro
     isDrawing = false; // Assurer que le dessin est stoppé
 
+    // Arrêter toute musique lors de la réinitialisation
+    stopAllMusic();
+    // Relancer la musique d'intro SI l'utilisateur a déjà interagi
+    if (userInteracted) {
+        playMusic(introMusic);
+    }
+
     // Si le canvas hors-écran existe (pour le mode bonus), on le nettoie
     if (window.offscreenCanvas) {
         window.offscreenCanvas = null;
@@ -293,6 +331,11 @@ function handleCanvasClick(e) {
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
+    // Gérer la première interaction utilisateur pour la musique
+    if (!userInteracted) {
+        userInteracted = true;
+    }
 
     // Bouton Croix (Actif sauf pendant Game Over peut-être?)
     // Si on veut qu'il soit actif même en game over, retirer la condition !gameOver
@@ -330,6 +373,11 @@ function handleCanvasTouch(e) {
     const x = touch.clientX - rect.left;
     const y = touch.clientY - rect.top;
 
+    // Gérer la première interaction utilisateur pour la musique
+    if (!userInteracted) {
+        userInteracted = true;
+    }
+
     // Bouton Croix
     if (x >= crossButtonPos.x && x <= crossButtonPos.x + buttonSize &&
         y >= crossButtonPos.y && y <= crossButtonPos.y + buttonSize) {
@@ -359,10 +407,17 @@ function handleCanvasTouch(e) {
 
 // --- Nouvelle fonction pour gérer le clic sur la bulle d'intro ---
 function handleIntroClick() {
+    // Jouer la musique d'intro lors du PREMIER clic sur la bulle si l'utilisateur a interagi
+    // et que la musique n'est pas déjà en train de jouer.
+    if (userInteracted && introMusic.paused) { 
+        playMusic(introMusic);
+    }
+
     introTextState++;
     if (introTextState >= introTexts.length) {
         // Commencer le jeu
         gameMode = 'playing';
+        playMusic(gameMusic); // <- Jouer la musique du jeu
         // Réinitialiser les variables de jeu pour une nouvelle partie
         score = 0;
         lives = 3;
@@ -397,6 +452,7 @@ function checkCollision(x, y) {
                 score += 10;
                 if (score >= scoreToWin && gameMode === 'playing') {
                     gameMode = 'bonus';
+                    playMusic(bonusMusic); // <- Jouer la musique du bonus
                     objects = [];
                     flameParticles = [];
                     cutLine = [];
@@ -775,6 +831,7 @@ function checkLineCollision(x1, y1, x2, y2) {
                 score += 10;
                 if (score >= scoreToWin && gameMode === 'playing') {
                     gameMode = 'bonus';
+                    playMusic(bonusMusic); // <- Jouer la musique du bonus
                     objects = [];
                     flameParticles = [];
                     cutLine = [];
@@ -843,6 +900,7 @@ function gameLoop() {
 function startGame() {
     resizeCanvas();
     drawGame();
+    // Ne pas lancer la musique ici directement, attendre l'interaction
     requestAnimationFrame(gameLoop);
 }
 
